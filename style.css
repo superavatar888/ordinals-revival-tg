@@ -173,6 +173,33 @@ header {
     text-align: center;
 }
 
+.syndicate-stats {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.stat-card {
+    flex: 1;
+    background: var(--secondary-bg);
+    padding: 15px;
+    text-align: center;
+    border: 1px solid var(--border-color);
+}
+
+.stat-card .val {
+    display: block;
+    font-size: 1.2rem;
+    color: var(--accent-color);
+    font-weight: bold;
+}
+
+.stat-card .lab {
+    font-size: 0.6rem;
+    color: #666;
+    text-transform: uppercase;
+}
+
 .referral-box input {
     width: 100%;
     background: #000;

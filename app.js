@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
 
 // --- Firebase Configuration ---
 const firebaseConfig = {
@@ -20,6 +20,16 @@ const tg = window.Telegram.WebApp;
 tg.expand();
 
 let userId = "local_user";
+let referralId = null; // Who invited me?
+
+// Parse start_param from TG (e.g., ref_12345)
+if (tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
+    const param = tg.initDataUnsafe.start_param;
+    if (param.startsWith('ref_')) {
+        referralId = param.replace('ref_', '');
+    }
+}
+
 if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
     userId = tg.initDataUnsafe.user.id.toString();
     document.getElementById('user-name').innerText = tg.initDataUnsafe.user.first_name;
@@ -28,13 +38,21 @@ if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
     }
 }
 
+// Generate My Referral Link
+const botUsername = "ReviveOrdiBot"; // Update this with your actual bot username
+const myRefLink = `https://t.me/${botUsername}?start=ref_${userId}`;
+document.getElementById('referral-link').value = myRefLink;
+
 let state = {
     balance: 0,
     miningRate: 10, 
     storageLimit: 2, 
     pickLv: 1,
     cartLv: 1,
-    lastClaimTime: Date.now()
+    lastClaimTime: Date.now(),
+    referredBy: null,
+    referralBonus: 0, // Bonus I earned from others
+    referralCount: 0  // How many people I invited
 };
 
 let localAccumulated = 0;
@@ -53,11 +71,21 @@ async function syncData() {
     const userSnap = await getDoc(userRef);
 
     if (userSnap.exists()) {
-        state = userSnap.data();
+        state = { ...state, ...userSnap.data() };
         updateUpgradeUI();
+        updateSyndicateUI();
     } else {
         // New User
+        state.referredBy = referralId;
         await setDoc(userRef, state);
+        
+        // If invited, increment inviter's count
+        if (referralId) {
+            const inviterRef = doc(db, "users", referralId);
+            await updateDoc(inviterRef, {
+                referralCount: increment(1)
+            }).catch(e => console.log("Inviter not found"));
+        }
     }
 }
 
@@ -67,6 +95,11 @@ function updateUpgradeUI() {
     document.getElementById('cart-lv').innerText = state.cartLv;
     document.getElementById('cart-cost').innerText = Math.floor(150 * Math.pow(1.6, state.cartLv - 1));
     rateEl.innerText = state.miningRate.toFixed(1);
+}
+
+function updateSyndicateUI() {
+    document.getElementById('ref-count').innerText = state.referralCount || 0;
+    document.getElementById('ref-bonus').innerText = (state.referralBonus || 0).toFixed(2);
 }
 
 // Mining Simulation Loop
@@ -79,7 +112,7 @@ setInterval(() => {
 
     // Update UI
     accumulatedEl.innerText = localAccumulated.toFixed(4);
-    balanceEl.innerText = state.balance.toFixed(2);
+    balanceEl.innerText = (state.balance + (state.referralBonus || 0)).toFixed(2);
     
     const progressPercent = (localAccumulated / maxAccumulation) * 100;
     progressEl.style.height = `${progressPercent}%`;
@@ -88,7 +121,8 @@ setInterval(() => {
 
 // Claim Logic
 btnClaim.addEventListener('click', async () => {
-    state.balance += localAccumulated;
+    const claimedAmount = localAccumulated;
+    state.balance += claimedAmount;
     state.lastClaimTime = Date.now();
     localAccumulated = 0;
     
@@ -97,6 +131,15 @@ btnClaim.addEventListener('click', async () => {
         balance: state.balance,
         lastClaimTime: state.lastClaimTime
     });
+
+    // Handle Referral Commission (5%)
+    if (state.referredBy) {
+        const commission = claimedAmount * 0.05;
+        const inviterRef = doc(db, "users", state.referredBy);
+        await updateDoc(inviterRef, {
+            referralBonus: increment(commission)
+        }).catch(e => console.log("Inviter not found for bonus"));
+    }
     
     tg.HapticFeedback.notificationOccurred('success');
 });
@@ -144,10 +187,25 @@ document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.add('active');
         document.querySelectorAll('.view').forEach(v => {
             v.classList.remove('active');
-            if (v.id === targetView) v.classList.add('active');
+            if (v.id === targetView) {
+                v.classList.add('active');
+                if (v.id === 'view-friends') {
+                    // Refresh data when entering Syndicate view
+                    syncData();
+                }
+            }
         });
     });
 });
 
 // Start the app
 syncData();
+
+// Copy Referral Link
+document.getElementById('btn-copy').addEventListener('click', () => {
+    const link = document.getElementById('referral-link');
+    link.select();
+    document.execCommand('copy');
+    tg.showScanQrPopup({text: "Invite Link Copied!"});
+    setTimeout(() => tg.closeScanQrPopup(), 1000);
+});
