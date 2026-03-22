@@ -54,6 +54,16 @@ header {
     gap: 10px;
 }
 
+#db-status {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #333; /* Default grey */
+}
+
+#db-status.online { background-color: #00ff00; box-shadow: 0 0 5px #00ff00; }
+#db-status.offline { background-color: #ff0000; box-shadow: 0 0 5px #ff0000; }
+
 #user-avatar {
     border-radius: 4px;
     border: 1px solid var(--accent-color);

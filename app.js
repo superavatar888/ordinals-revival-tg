@@ -19,15 +19,13 @@ const db = getFirestore(app);
 const tg = window.Telegram.WebApp;
 tg.expand();
 
+const statusEl = document.getElementById('db-status');
 let userId = "local_user";
-let referralId = null; // Who invited me?
+let referralId = null;
 
-// Parse start_param from TG (e.g., ref_12345)
 if (tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
     const param = tg.initDataUnsafe.start_param;
-    if (param.startsWith('ref_')) {
-        referralId = param.replace('ref_', '');
-    }
+    if (param.startsWith('ref_')) referralId = param.replace('ref_', '');
 }
 
 if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
@@ -38,11 +36,10 @@ if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
     }
 }
 
-// Generate My Referral Link
-const botUsername = "ReviveOrdiBot"; // Update this with your actual bot username
-const myRefLink = `https://t.me/${botUsername}?start=ref_${userId}`;
+const myRefLink = `https://t.me/ReviveOrdiBot?start=ref_${userId}`;
 document.getElementById('referral-link').value = myRefLink;
 
+// Initial Local State
 let state = {
     balance: 0,
     miningRate: 10, 
@@ -51,10 +48,11 @@ let state = {
     cartLv: 1,
     lastClaimTime: Date.now(),
     referredBy: null,
-    referralBonus: 0, // Bonus I earned from others
-    referralCount: 0  // How many people I invited
+    referralBonus: 0,
+    referralCount: 0
 };
 
+let isDataLoaded = false;
 let localAccumulated = 0;
 
 // --- DOM Elements ---
@@ -64,28 +62,37 @@ const rateEl = document.getElementById('rate');
 const progressEl = document.getElementById('block-progress');
 const btnClaim = document.getElementById('btn-claim');
 
-// --- Functions ---
+// --- Core Functions ---
 
 async function syncData() {
-    const userRef = doc(db, "users", userId);
-    const userSnap = await getDoc(userRef);
+    console.log("Attempting to sync with Firebase for UID:", userId);
+    try {
+        const userRef = doc(db, "users", userId);
+        const userSnap = await getDoc(userRef);
 
-    if (userSnap.exists()) {
-        state = { ...state, ...userSnap.data() };
+        if (userSnap.exists()) {
+            const cloudData = userSnap.data();
+            console.log("Cloud data found:", cloudData);
+            state = { ...state, ...cloudData };
+        } else {
+            console.log("New user detected. Initializing cloud record...");
+            state.referredBy = referralId;
+            await setDoc(userRef, state);
+            
+            if (referralId) {
+                const inviterRef = doc(db, "users", referralId);
+                await updateDoc(inviterRef, { referralCount: increment(1) }).catch(e => console.error("Inviter update failed:", e));
+            }
+        }
+        
+        isDataLoaded = true;
+        statusEl.className = 'online';
         updateUpgradeUI();
         updateSyndicateUI();
-    } else {
-        // New User
-        state.referredBy = referralId;
-        await setDoc(userRef, state);
-        
-        // If invited, increment inviter's count
-        if (referralId) {
-            const inviterRef = doc(db, "users", referralId);
-            await updateDoc(inviterRef, {
-                referralCount: increment(1)
-            }).catch(e => console.log("Inviter not found"));
-        }
+    } catch (error) {
+        console.error("Firebase Sync Error:", error);
+        statusEl.className = 'offline';
+        tg.showAlert("Cloud Sync Error: " + error.message + "\nPlease check your internet and Firebase rules.");
     }
 }
 
@@ -102,8 +109,10 @@ function updateSyndicateUI() {
     document.getElementById('ref-bonus').innerText = (state.referralBonus || 0).toFixed(2);
 }
 
-// Mining Simulation Loop
+// Mining Loop
 setInterval(() => {
+    if (!isDataLoaded) return; // Wait for Firebase before calculating anything
+
     const now = Date.now();
     const elapsedHrs = (now - state.lastClaimTime) / (1000 * 60 * 60);
     const maxAccumulation = state.miningRate * state.storageLimit;
@@ -121,65 +130,70 @@ setInterval(() => {
 
 // Claim Logic
 btnClaim.addEventListener('click', async () => {
+    if (!isDataLoaded) return;
+    
     const claimedAmount = localAccumulated;
     state.balance += claimedAmount;
     state.lastClaimTime = Date.now();
     localAccumulated = 0;
     
-    const userRef = doc(db, "users", userId);
-    await updateDoc(userRef, {
-        balance: state.balance,
-        lastClaimTime: state.lastClaimTime
-    });
-
-    // Handle Referral Commission (5%)
-    if (state.referredBy) {
-        const commission = claimedAmount * 0.05;
-        const inviterRef = doc(db, "users", state.referredBy);
-        await updateDoc(inviterRef, {
-            referralBonus: increment(commission)
-        }).catch(e => console.log("Inviter not found for bonus"));
-    }
+    console.log("Claiming", claimedAmount, "new balance:", state.balance);
     
-    tg.HapticFeedback.notificationOccurred('success');
+    try {
+        const userRef = doc(db, "users", userId);
+        await updateDoc(userRef, {
+            balance: state.balance,
+            lastClaimTime: state.lastClaimTime
+        });
+
+        if (state.referredBy) {
+            const commission = claimedAmount * 0.05;
+            const inviterRef = doc(db, "users", state.referredBy);
+            await updateDoc(inviterRef, { referralBonus: increment(commission) });
+        }
+        tg.HapticFeedback.notificationOccurred('success');
+    } catch (e) {
+        console.error("Claim write failed:", e);
+        tg.showAlert("Failed to save claim to cloud!");
+    }
 });
 
 // Upgrade Logic
 async function handleUpgrade(type) {
+    if (!isDataLoaded) return;
+    
     let cost = 0;
-    const userRef = doc(db, "users", userId);
+    try {
+        const userRef = doc(db, "users", userId);
+        if (type === 'pick') {
+            cost = Math.floor(100 * Math.pow(1.5, state.pickLv - 1));
+            if (state.balance >= cost) {
+                state.balance -= cost;
+                state.pickLv++;
+                state.miningRate += 2;
+            } else { tg.showAlert("Insufficient $ORDIR!"); return; }
+        } else {
+            cost = Math.floor(150 * Math.pow(1.6, state.cartLv - 1));
+            if (state.balance >= cost) {
+                state.balance -= cost;
+                state.cartLv++;
+                state.storageLimit += 2;
+            } else { tg.showAlert("Insufficient $ORDIR!"); return; }
+        }
 
-    if (type === 'pick') {
-        cost = Math.floor(100 * Math.pow(1.5, state.pickLv - 1));
-        if (state.balance >= cost) {
-            state.balance -= cost;
-            state.pickLv++;
-            state.miningRate += 2;
-        } else {
-            tg.showAlert("Not enough $ORDIR!");
-            return;
-        }
-    } else if (type === 'cart') {
-        cost = Math.floor(150 * Math.pow(1.6, state.cartLv - 1));
-        if (state.balance >= cost) {
-            state.balance -= cost;
-            state.cartLv++;
-            state.storageLimit += 2;
-        } else {
-            tg.showAlert("Not enough $ORDIR!");
-            return;
-        }
+        await setDoc(userRef, state);
+        updateUpgradeUI();
+        tg.HapticFeedback.impactOccurred('medium');
+    } catch (e) {
+        console.error("Upgrade failed:", e);
+        tg.showAlert("Failed to save upgrade!");
     }
-
-    await setDoc(userRef, state);
-    updateUpgradeUI();
-    tg.HapticFeedback.impactOccurred('medium');
 }
 
 document.getElementById('btn-upgrade-pick').addEventListener('click', () => handleUpgrade('pick'));
 document.getElementById('btn-upgrade-cart').addEventListener('click', () => handleUpgrade('cart'));
 
-// Navigation
+// Navigation & Copy (Same as before)
 document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => {
         const targetView = item.getAttribute('data-view');
@@ -187,25 +201,16 @@ document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.add('active');
         document.querySelectorAll('.view').forEach(v => {
             v.classList.remove('active');
-            if (v.id === targetView) {
-                v.classList.add('active');
-                if (v.id === 'view-friends') {
-                    // Refresh data when entering Syndicate view
-                    syncData();
-                }
-            }
+            if (v.id === targetView) v.classList.add('active');
         });
     });
 });
 
-// Start the app
-syncData();
-
-// Copy Referral Link
 document.getElementById('btn-copy').addEventListener('click', () => {
-    const link = document.getElementById('referral-link');
-    link.select();
-    document.execCommand('copy');
+    navigator.clipboard.writeText(document.getElementById('referral-link').value);
     tg.showScanQrPopup({text: "Invite Link Copied!"});
     setTimeout(() => tg.closeScanQrPopup(), 1000);
 });
+
+// Init
+syncData();
