@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Ordinals Revival</title>
+    <title>ORDIR Revival</title>
     <link rel="stylesheet" href="style.css">
     <!-- Telegram Web Apps SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -20,7 +20,7 @@
                 <div class="balance-container">
                     <span class="label">BAL:</span>
                     <span id="balance">0.00</span>
-                    <span class="ticker">$ORDI_REV</span>
+                    <span class="ticker">$ORDIR</span>
                 </div>
             </header>
 
@@ -38,7 +38,7 @@
                 </div>
                 
                 <div class="narrative-banner">
-                    <p>REVENUE FUNDING ME-KILLER MARKETPLACE</p>
+                    <p>FUNDING THE NEXT-GEN BTC MARKETPLACE</p>
                 </div>
             </main>
         </section>
@@ -51,7 +51,7 @@
                     <div class="icon">⛏️</div>
                     <div class="details">
                         <h3>ASIC Miner (Speed)</h3>
-                        <p>Lv <span id="pick-lv">1</span> -> +2 $ORDI/hr</p>
+                        <p>Lv <span id="pick-lv">1</span> -> +2 $ORDIR/hr</p>
                     </div>
                     <button id="btn-upgrade-pick" class="secondary-btn">Cost: <span id="pick-cost">100</span></button>
                 </div>
@@ -70,7 +70,7 @@
         <section id="view-friends" class="view">
             <h2>The Syndicate</h2>
             <div class="referral-box">
-                <p>Recruit other miners. Earn 5% of their production.</p>
+                <p>Recruit miners. Earn 5% production bonus.</p>
                 <input type="text" id="referral-link" readonly value="https://t.me/ReviveOrdiBot?start=ref_123">
                 <button id="btn-copy" class="primary-btn">COPY INVITE LINK</button>
             </div>
@@ -83,6 +83,8 @@
             <button class="nav-item" data-view="view-friends">SYNDICATE</button>
         </nav>
     </div>
-    <script src="app.js"></script>
+
+    <!-- Firebase Integration -->
+    <script type="module" src="app.js"></script>
 </body>
 </html>
