@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Ordinals Revival</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Telegram Web Apps SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Dashboard / Mempool View -->
+        <section id="view-dashboard" class="view active">
+            <header>
+                <div class="user-info">
+                    <img id="user-avatar" src="https://via.placeholder.com/40" alt="Avatar">
+                    <span id="user-name">Anon Miner</span>
+                </div>
+                <div class="balance-container">
+                    <span class="label">BAL:</span>
+                    <span id="balance">0.00</span>
+                    <span class="ticker">$ORDI_REV</span>
+                </div>
+            </header>
+
+            <main>
+                <div class="block-container">
+                    <div class="block-visual">
+                        <div id="block-progress" class="fill"></div>
+                        <span class="block-label">PACKING BLOCK...</span>
+                    </div>
+                    <div class="stats">
+                        <p>Accumulated: <span id="accumulated">0.00</span></p>
+                        <p>Rate: <span id="rate">10.0</span> / hr</p>
+                    </div>
+                    <button id="btn-claim" class="primary-btn" disabled>CLAIM MINED BLOCK</button>
+                </div>
+                
+                <div class="narrative-banner">
+                    <p>REVENUE FUNDING ME-KILLER MARKETPLACE</p>
+                </div>
+            </main>
+        </section>
+
+        <!-- Upgrades / Forge View -->
+        <section id="view-upgrades" class="view">
+            <h2>The Forge</h2>
+            <div class="upgrade-list">
+                <div class="upgrade-item">
+                    <div class="icon">⛏️</div>
+                    <div class="details">
+                        <h3>ASIC Miner (Speed)</h3>
+                        <p>Lv <span id="pick-lv">1</span> -> +2 $ORDI/hr</p>
+                    </div>
+                    <button id="btn-upgrade-pick" class="secondary-btn">Cost: <span id="pick-cost">100</span></button>
+                </div>
+                <div class="upgrade-item">
+                    <div class="icon">🛒</div>
+                    <div class="details">
+                        <h3>Node Storage (Capacity)</h3>
+                        <p>Lv <span id="cart-lv">1</span> -> +2 hrs limit</p>
+                    </div>
+                    <button id="btn-upgrade-cart" class="secondary-btn">Cost: <span id="cart-cost">150</span></button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Friends / Syndicate View -->
+        <section id="view-friends" class="view">
+            <h2>The Syndicate</h2>
+            <div class="referral-box">
+                <p>Recruit other miners. Earn 5% of their production.</p>
+                <input type="text" id="referral-link" readonly value="https://t.me/ReviveOrdiBot?start=ref_123">
+                <button id="btn-copy" class="primary-btn">COPY INVITE LINK</button>
+            </div>
+        </section>
+
+        <!-- Navigation Bar -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" data-view="view-dashboard">MEMPOOL</button>
+            <button class="nav-item" data-view="view-upgrades">FORGE</button>
+            <button class="nav-item" data-view="view-friends">SYNDICATE</button>
+        </nav>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
