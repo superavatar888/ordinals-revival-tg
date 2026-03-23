@@ -20,6 +20,7 @@ const tg = window.Telegram.WebApp;
 tg.expand();
 
 const statusEl = document.getElementById('db-status');
+const debugUidEl = document.getElementById('debug-uid');
 let userId = "local_user";
 let referralId = null;
 
@@ -35,11 +36,13 @@ if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
         document.getElementById('user-avatar').src = tg.initDataUnsafe.user.photo_url;
     }
 }
+debugUidEl.innerText = userId;
 
-const myRefLink = `https://t.me/ReviveOrdiBot?start=ref_${userId}`;
+const botUsername = "ReviveOrdiBot"; 
+const myRefLink = `https://t.me/${botUsername}?start=ref_${userId}`;
 document.getElementById('referral-link').value = myRefLink;
 
-// Initial Local State
+// Default state for NEW users
 let state = {
     balance: 0,
     miningRate: 10, 
@@ -65,34 +68,36 @@ const btnClaim = document.getElementById('btn-claim');
 // --- Core Functions ---
 
 async function syncData() {
-    console.log("Attempting to sync with Firebase for UID:", userId);
     try {
         const userRef = doc(db, "users", userId);
         const userSnap = await getDoc(userRef);
 
         if (userSnap.exists()) {
             const cloudData = userSnap.data();
-            console.log("Cloud data found:", cloudData);
+            // Critical Fix: Only overwrite keys that exist in cloud to maintain state structure
             state = { ...state, ...cloudData };
+            console.log("Cloud Data Loaded:", state);
         } else {
-            console.log("New user detected. Initializing cloud record...");
+            console.log("Creating new cloud record...");
             state.referredBy = referralId;
+            state.lastClaimTime = Date.now(); // Start mining from NOW
             await setDoc(userRef, state);
             
             if (referralId) {
                 const inviterRef = doc(db, "users", referralId);
-                await updateDoc(inviterRef, { referralCount: increment(1) }).catch(e => console.error("Inviter update failed:", e));
+                await updateDoc(inviterRef, { referralCount: increment(1) }).catch(e => {});
             }
         }
         
         isDataLoaded = true;
         statusEl.className = 'online';
+        document.getElementById('loading-overlay').style.display = 'none'; // Hide loader
         updateUpgradeUI();
         updateSyndicateUI();
     } catch (error) {
         console.error("Firebase Sync Error:", error);
         statusEl.className = 'offline';
-        tg.showAlert("Cloud Sync Error: " + error.message + "\nPlease check your internet and Firebase rules.");
+        tg.showAlert("Cloud Error: " + error.message);
     }
 }
 
@@ -109,9 +114,9 @@ function updateSyndicateUI() {
     document.getElementById('ref-bonus').innerText = (state.referralBonus || 0).toFixed(2);
 }
 
-// Mining Loop
+// Mining Simulation Loop
 setInterval(() => {
-    if (!isDataLoaded) return; // Wait for Firebase before calculating anything
+    if (!isDataLoaded) return;
 
     const now = Date.now();
     const elapsedHrs = (now - state.lastClaimTime) / (1000 * 60 * 60);
@@ -125,7 +130,7 @@ setInterval(() => {
     
     const progressPercent = (localAccumulated / maxAccumulation) * 100;
     progressEl.style.height = `${progressPercent}%`;
-    btnClaim.disabled = localAccumulated <= 0.0001;
+    btnClaim.disabled = localAccumulated < 0.0001;
 }, 100);
 
 // Claim Logic
@@ -134,10 +139,8 @@ btnClaim.addEventListener('click', async () => {
     
     const claimedAmount = localAccumulated;
     state.balance += claimedAmount;
-    state.lastClaimTime = Date.now();
+    state.lastClaimTime = Date.now(); // RESET START TIME
     localAccumulated = 0;
-    
-    console.log("Claiming", claimedAmount, "new balance:", state.balance);
     
     try {
         const userRef = doc(db, "users", userId);
@@ -153,8 +156,8 @@ btnClaim.addEventListener('click', async () => {
         }
         tg.HapticFeedback.notificationOccurred('success');
     } catch (e) {
-        console.error("Claim write failed:", e);
-        tg.showAlert("Failed to save claim to cloud!");
+        console.error("Save failed:", e);
+        tg.showAlert("Sync Failed!");
     }
 });
 
@@ -185,15 +188,14 @@ async function handleUpgrade(type) {
         updateUpgradeUI();
         tg.HapticFeedback.impactOccurred('medium');
     } catch (e) {
-        console.error("Upgrade failed:", e);
-        tg.showAlert("Failed to save upgrade!");
+        tg.showAlert("Upgrade Save Failed!");
     }
 }
 
 document.getElementById('btn-upgrade-pick').addEventListener('click', () => handleUpgrade('pick'));
 document.getElementById('btn-upgrade-cart').addEventListener('click', () => handleUpgrade('cart'));
 
-// Navigation & Copy (Same as before)
+// Navigation & Copy
 document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => {
         const targetView = item.getAttribute('data-view');
@@ -207,10 +209,11 @@ document.querySelectorAll('.nav-item').forEach(item => {
 });
 
 document.getElementById('btn-copy').addEventListener('click', () => {
-    navigator.clipboard.writeText(document.getElementById('referral-link').value);
-    tg.showScanQrPopup({text: "Invite Link Copied!"});
-    setTimeout(() => tg.closeScanQrPopup(), 1000);
+    const input = document.getElementById('referral-link');
+    input.select();
+    document.execCommand('copy');
+    tg.showAlert("Invite Link Copied!");
 });
 
-// Init
+// Start the app
 syncData();

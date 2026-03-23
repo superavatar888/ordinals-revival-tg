@@ -9,7 +9,16 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
+    <div id="loading-overlay" style="position:fixed; inset:0; background:#000; z-index:9999; display:flex; align-items:center; justify-content:center; flex-direction:column;">
+        <div style="color:#F7931A; font-weight:bold; font-size:1.2rem; letter-spacing:4px; margin-bottom:10px;">SYNCING BLOCKCHAIN...</div>
+        <div style="width:50px; height:2px; background:#333; position:relative; overflow:hidden;">
+            <div style="position:absolute; inset:0; background:#F7931A; animation: loading-bar 1.5s infinite;"></div>
+        </div>
+        <style>@keyframes loading-bar { from {left:-100%;} to {left:100%;} }</style>
+    </div>
+
     <div id="app">
+        <div class="debug-info">UID: <span id="debug-uid">----</span></div>
         <!-- Dashboard / Mempool View -->
         <section id="view-dashboard" class="view active">
             <header>
